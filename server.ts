@@ -3,8 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import * as XLSX from 'xlsx';
-import { db, generateStudentUsername, getDefaultStudentPassword, hashPassword, verifyPassword } from './server/db';
-import { parseExamWithAI, solveQuestionsWithAI, chatExamAssistant } from './server/ai';
+import { db, generateStudentUsername, getDefaultStudentPassword, hashPassword, verifyPassword } from './server/db.ts';
+import { parseExamWithAI, solveQuestionsWithAI, chatExamAssistant } from './server/ai.ts';
 import { Exam, ExamSession, Question, QuestionOption, StudentQuestion } from './src/types';
 
 dotenv.config();

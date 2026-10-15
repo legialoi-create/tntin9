@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Exam, ExamSession, ClassInfo, StudentInfo } from '../src/types';
-import { SEED_APP_DATA } from './seedData';
+import { SEED_APP_DATA } from './seedData.ts';
 
 interface DatabaseSchema {
   exams: Exam[];
