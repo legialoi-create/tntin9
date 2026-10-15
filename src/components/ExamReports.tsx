@@ -17,7 +17,8 @@ import {
   Eye,
   Clock,
   History,
-  BookOpen
+  BookOpen,
+  RotateCw
 } from 'lucide-react';
 import { Exam } from '../types';
 import { api } from '../services/api';
@@ -65,28 +66,31 @@ export const ExamReports: React.FC<ExamReportsProps> = ({ exams, selectedExamId 
     }
   }, [selectedExamId, exams]);
 
-  const fetchReports = async () => {
+  const fetchReports = async (showLoading = false) => {
     if (!currentExamId || !exams.some((e) => e.id === currentExamId)) {
       setReportData(null);
       return;
     }
-    setIsLoading(true);
+    if (showLoading) setIsLoading(true);
     try {
       const data = await api.getExamReports(currentExamId);
       setReportData(data);
     } catch (err: any) {
       console.warn('Exam report not found or loaded yet:', currentExamId, err?.message);
-      setReportData(null);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     if (currentExamId && exams.some((e) => e.id === currentExamId)) {
-      fetchReports();
+      fetchReports(true);
+      const interval = setInterval(() => {
+        fetchReports(false);
+      }, 4000);
+      return () => clearInterval(interval);
     }
-  }, [currentExamId]);
+  }, [currentExamId, exams]);
 
   const handleExportExcel = async () => {
     if (!currentExamId) return;
@@ -184,6 +188,16 @@ export const ExamReports: React.FC<ExamReportsProps> = ({ exams, selectedExamId 
             size="md"
             label="Kỳ thi:"
           />
+
+          {/* Manual Refresh Button */}
+          <button
+            onClick={() => fetchReports(true)}
+            title="Cập nhật kết quả làm bài mới nhất"
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-indigo-600' : ''}`} />
+            <span>Làm mới</span>
+          </button>
 
           {/* Export Excel Button */}
           <button

@@ -411,16 +411,45 @@ export const api = {
   },
 
   deleteExam: async (id: string): Promise<void> => {
-    const cached = localStorage.getItem('ncv_exams_data');
-    if (cached) {
-      try {
-        const exams: Exam[] = JSON.parse(cached) || [];
-        const filtered = exams.filter((e) => e.id !== id);
-        localStorage.setItem('ncv_exams_data', JSON.stringify(filtered));
-      } catch (e) {}
-    }
+    if (!id) return;
+
+    // Purge local storage caches for this exam ID
     try {
-      await fetch(`/api/exams/${id}`, {
+      localStorage.removeItem(`ncv_submissions_${id}`);
+      localStorage.removeItem(`ncv_reports_cache_${id}`);
+      sessionStorage.removeItem(`ncv_reports_cache_${id}`);
+
+      const selectedId = localStorage.getItem('ncv_selected_exam_id');
+      if (selectedId === id) {
+        localStorage.removeItem('ncv_selected_exam_id');
+      }
+
+      const cached = localStorage.getItem('ncv_exams_data');
+      if (cached) {
+        const exams: Exam[] = JSON.parse(cached) || [];
+        const target = exams.find(e => e.id === id);
+        const code = target?.code;
+        if (code) {
+          localStorage.removeItem(`ncv_submissions_${code}`);
+          localStorage.removeItem(`ncv_reports_cache_${code}`);
+        }
+        const filtered = exams.filter((e) => e.id !== id && (code ? e.code !== code : true));
+        localStorage.setItem('ncv_exams_data', JSON.stringify(filtered));
+      }
+
+      // Clean up any keys that contain the deleted exam ID
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes(id) || key.startsWith(`ncv_submissions_${id}`) || key.startsWith(`ncv_reports_cache_${id}`))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
+
+    try {
+      await fetch(`/api/exams/${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: getHeaders(true),
       });
@@ -1425,30 +1454,7 @@ export const api = {
       }
     }
 
-    if (students.length === 0 && Array.isArray((SEED_APP_DATA as any).sessions)) {
-      const seedSessions = (SEED_APP_DATA as any).sessions.filter(
-        (s: any) => s.examId === examId || examId === 'ALL' || !examId
-      );
-      const targetSeeds = seedSessions.length > 0 ? seedSessions : (SEED_APP_DATA as any).sessions;
-      targetSeeds.forEach((loc: any, idx: number) => {
-        students.push({
-          stt: idx + 1,
-          sessionId: loc.id,
-          studentName: loc.studentName,
-          studentClass: loc.studentClass,
-          sbd: loc.sbd,
-          status: loc.status || 'submitted',
-          answeredCount: (loc.correctCount || 0) + (loc.incorrectCount || 0),
-          totalQuestions: 10,
-          score: loc.score,
-          bestScore: loc.score,
-          attemptNumber: loc.attemptNumber || 1,
-          violationCount: loc.violationCount || 0,
-          submittedAt: loc.submittedAt,
-          isLocked: false
-        });
-      });
-    }
+
 
     return {
       ...(serverData || { exam: { id: examId }, stats: {} }),
@@ -1516,24 +1522,7 @@ export const api = {
       }
     }
 
-    if (combinedSubmissions.length === 0 && Array.isArray((SEED_APP_DATA as any).sessions)) {
-      const seedSessions = (SEED_APP_DATA as any).sessions.filter(
-        (s: any) => s.examId === examId || examId === 'ALL' || !examId
-      );
-      const targetSeeds = seedSessions.length > 0 ? seedSessions : (SEED_APP_DATA as any).sessions;
-      for (const seed of targetSeeds) {
-        combinedSubmissions.push({
-          ...seed,
-          sessionId: seed.id,
-          name: seed.studentName,
-          studentName: seed.studentName,
-          class: seed.studentClass,
-          studentClass: seed.studentClass,
-          score: seed.score ?? 10,
-          bestScore: seed.score ?? 10
-        });
-      }
-    }
+
 
     if (combinedSubmissions.length > 0) {
       const totalStudents = combinedSubmissions.length;

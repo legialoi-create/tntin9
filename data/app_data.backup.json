@@ -151,7 +151,7 @@
           "explanation": "Hàm SUM dùng để tính tổng chuỗi dữ liệu trong dải ô."
         }
       ],
-      "updatedAt": "2026-10-15T14:15:14.687Z"
+      "updatedAt": "2026-10-15T14:56:17.891Z"
     },
     {
       "id": "exam-1791604725287",
@@ -426,7 +426,7 @@
           "explanation": "Ctrl + M dùng để chèn thêm slide mới trong PowerPoint."
         }
       ],
-      "updatedAt": "2026-10-15T14:15:14.687Z"
+      "updatedAt": "2026-10-15T14:56:17.891Z"
     }
   ],
   "sessions": [
@@ -915,7 +915,8 @@
     "exam-tin7-ncv",
     "exam-tin6-ncv",
     "exam-tin9-ncv",
-    "exam-tin8-hk1"
+    "exam-tin8-hk1",
+    "undefined"
   ],
   "adminToken": "legialoi-ncv-session-secret",
   "adminPassword": "101   101!@#"
