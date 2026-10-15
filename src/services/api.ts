@@ -1563,15 +1563,27 @@ export const api = {
       return mergedReport;
     }
 
-    let localCache: any = null;
-    try {
-      const cachedStr = localStorage.getItem(`ncv_reports_cache_${examId}`);
-      if (cachedStr) {
-        localCache = JSON.parse(cachedStr);
-      }
-    } catch {}
-
-    return localCache;
+    return {
+      examId,
+      totalSubmissions: 0,
+      totalStudentsCount: 0,
+      averageScore: 0,
+      highestScore: 0,
+      lowestScore: 0,
+      passCount: 0,
+      goodCount: 0,
+      passRate: 0,
+      scoreDistribution: [
+        { range: '0 - <5.0', count: 0 },
+        { range: '5.0 - <6.5', count: 0 },
+        { range: '6.5 - <8.0', count: 0 },
+        { range: '8.0 - 10', count: 0 }
+      ],
+      questionAnalysis: [],
+      classBreakdown: {},
+      questionStats: [],
+      submissions: []
+    } as any;
   },
 
   syncSessions: async (sessions: any[]) => {

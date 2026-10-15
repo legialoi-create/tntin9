@@ -276,15 +276,12 @@ class DatabaseManager {
         }
       }
 
-      if (sessionMap.size === 0 && Array.isArray((SEED_APP_DATA as any).sessions)) {
-        (SEED_APP_DATA as any).sessions.forEach((s: any) => {
-          if (s && s.id) sessionMap.set(s.id, s);
-        });
-      }
+      // Keep only real student sessions
+      const realSessions = Array.from(sessionMap.values()).filter(s => s && s.id && !s.id.startsWith('ses-seed-'));
 
       const mergedData: DatabaseSchema = {
         exams: Array.from(examMap.values()),
-        sessions: Array.from(sessionMap.values()),
+        sessions: realSessions,
         classes: Array.from(classMap.values()),
         students: Array.from(studentMap.values()),
         deletedExamIds: Array.from(deletedExamIdsSet),
