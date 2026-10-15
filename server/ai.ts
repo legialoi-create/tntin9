@@ -1,6 +1,4 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import mammoth from 'mammoth';
-import { PDFParse } from 'pdf-parse';
 
 const getAiClient = () => {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -348,7 +346,9 @@ export async function parseExamWithAI(params: {
   ) {
     try {
       const buffer = Buffer.from(params.fileBase64, 'base64');
-      const mammothResult = await mammoth.extractRawText({ buffer });
+      const mammothModule = await import('mammoth');
+      const mammothInstance = mammothModule.default || mammothModule;
+      const mammothResult = await mammothInstance.extractRawText({ buffer });
       if (mammothResult && mammothResult.value && mammothResult.value.trim().length > 0) {
         textContent = mammothResult.value;
       }
@@ -364,12 +364,18 @@ export async function parseExamWithAI(params: {
   ) {
     try {
       const buffer = Buffer.from(params.fileBase64, 'base64');
-      const parser = new PDFParse({ data: buffer });
-      const textResult = await parser.getText();
-      await parser.destroy();
-      const extractedStr = typeof textResult === 'string' ? textResult : (textResult as any)?.text || '';
-      if (extractedStr && extractedStr.trim().length > 20) {
-        textContent = extractedStr;
+      const pdfModule = await import('pdf-parse');
+      const PDFParseClass = (pdfModule as any).PDFParse || (pdfModule as any).default || pdfModule;
+      if (typeof PDFParseClass === 'function') {
+        const parser = new (PDFParseClass as any)({ data: buffer });
+        if (parser && typeof parser.getText === 'function') {
+          const textResult = await parser.getText();
+          if (typeof parser.destroy === 'function') await parser.destroy();
+          const extractedStr = typeof textResult === 'string' ? textResult : (textResult as any)?.text || '';
+          if (extractedStr && extractedStr.trim().length > 20) {
+            textContent = extractedStr;
+          }
+        }
       }
     } catch (err) {
       console.warn('PDFParse extraction warning:', err);
