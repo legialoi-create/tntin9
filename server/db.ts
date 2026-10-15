@@ -452,10 +452,17 @@ class DatabaseManager {
 
   // Sessions
   public getSessions(examId?: string): ExamSession[] {
-    if (examId) {
-      return this.data.sessions.filter(s => s.examId === examId);
-    }
-    return this.data.sessions;
+    if (!examId) return this.data.sessions;
+    const cleanId = String(examId).trim().toUpperCase();
+    const exam = this.data.exams.find(e => e.id.toUpperCase() === cleanId || (e.code && e.code.trim().toUpperCase() === cleanId));
+    const code = exam?.code?.trim().toUpperCase();
+    const targetId = exam?.id?.trim().toUpperCase() || cleanId;
+
+    return this.data.sessions.filter(s => {
+      if (!s || !s.examId) return false;
+      const sExamIdUpper = String(s.examId).trim().toUpperCase();
+      return sExamIdUpper === targetId || (code ? sExamIdUpper === code : false);
+    });
   }
 
   public getSession(sessionId: string): ExamSession | undefined {
@@ -463,11 +470,21 @@ class DatabaseManager {
   }
 
   public getActiveSessionForStudent(examId: string, studentName: string, studentClass: string): ExamSession | undefined {
+    const cleanId = String(examId).trim().toUpperCase();
+    const exam = this.data.exams.find(e => e.id.toUpperCase() === cleanId || (e.code && e.code.trim().toUpperCase() === cleanId));
+    const code = exam?.code?.trim().toUpperCase();
+    const targetId = exam?.id?.trim().toUpperCase() || cleanId;
+
     return this.data.sessions.find(
-      s => s.examId === examId &&
-           s.studentClass.trim().toLowerCase() === studentClass.trim().toLowerCase() &&
-           s.studentName.trim().toLowerCase() === studentName.trim().toLowerCase() &&
-           s.status !== 'submitted'
+      s => {
+        if (!s || !s.examId) return false;
+        const sExamIdUpper = String(s.examId).trim().toUpperCase();
+        const matchExam = sExamIdUpper === targetId || (code ? sExamIdUpper === code : false);
+        return matchExam &&
+               String(s.studentClass || '').trim().toLowerCase() === String(studentClass || '').trim().toLowerCase() &&
+               String(s.studentName || '').trim().toLowerCase() === String(studentName || '').trim().toLowerCase() &&
+               s.status !== 'submitted';
+      }
     );
   }
 
