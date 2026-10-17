@@ -435,6 +435,24 @@ export const api = {
         }
         const filtered = exams.filter((e) => e.id !== id && (code ? e.code !== code : true));
         localStorage.setItem('ncv_exams_data', JSON.stringify(filtered));
+        // Purge global submissions cache
+        try {
+          const globalRaw = localStorage.getItem('ncv_submissions_global_all');
+          if (globalRaw) {
+            const globalArr = JSON.parse(globalRaw);
+            if (Array.isArray(globalArr)) {
+              const filteredGlobal = globalArr.filter((s: any) => {
+                if (!s) return false;
+                const sId = String(s.examId || '').trim().toUpperCase();
+                const sCode = String(s.examCode || '').trim().toUpperCase();
+                const matchId = sId === id.toUpperCase();
+                const matchCode = code ? sCode === code.toUpperCase() || sId === code.toUpperCase() : false;
+                return !matchId && !matchCode;
+              });
+              localStorage.setItem('ncv_submissions_global_all', JSON.stringify(filteredGlobal));
+            }
+          }
+        } catch (e) {}
       }
 
       // Clean up any keys that contain the deleted exam ID
@@ -1352,56 +1370,92 @@ export const api = {
 
     // Persist this submission into localStorage for reports and proctoring
     try {
-      const examId = payload.examId || (result as any).examId;
+      const examId = String(payload.examId || (result as any).examId || '').trim();
+      const examCode = String(payload.examCode || (result as any).examCode || '').trim();
+      const actualScore = result?.score !== undefined ? result.score : (result?.bestScore ?? 0);
+      const actualBestScore = result?.bestScore !== undefined ? result.bestScore : actualScore;
+
+      const submissionItem = {
+        sessionId,
+        examId: examId || examCode,
+        examCode: examCode || examId,
+        name: payload.studentName || 'Học sinh',
+        studentName: payload.studentName || 'Học sinh',
+        class: payload.studentClass || '',
+        studentClass: payload.studentClass || '',
+        sbd: payload.sbd || '',
+        score: actualScore,
+        bestScore: actualBestScore,
+        correctCount: result.correctCount ?? 0,
+        incorrectCount: result.incorrectCount ?? 0,
+        unansweredCount: result.unansweredCount ?? 0,
+        totalQuestions: result.totalQuestions || 10,
+        attemptNumber: result.attemptNumber || payload.attemptNumber || 1,
+        submittedAt: result.submittedAt || new Date().toISOString(),
+        status: 'submitted',
+        violationCount: payload.violationCount || 0
+      };
+
+      // 1. Save to examId key
       if (examId) {
         const cacheKey = `ncv_submissions_${examId}`;
         const existing = JSON.parse(localStorage.getItem(cacheKey) || '[]');
-        const submissionItem = {
-          sessionId,
-          name: payload.studentName || 'Học sinh',
-          studentName: payload.studentName || 'Học sinh',
-          class: payload.studentClass || '',
-          studentClass: payload.studentClass || '',
-          sbd: payload.sbd || '',
-          score: result.score,
-          bestScore: result.bestScore ?? result.score,
-          correctCount: result.correctCount,
-          incorrectCount: result.incorrectCount,
-          unansweredCount: result.unansweredCount,
-          totalQuestions: result.totalQuestions,
-          attemptNumber: result.attemptNumber || payload.attemptNumber || 1,
-          submittedAt: result.submittedAt || new Date().toISOString(),
-          status: 'submitted',
-          violationCount: payload.violationCount || 0
-        };
         const filtered = existing.filter((s: any) => s.sessionId !== submissionItem.sessionId);
         filtered.unshift(submissionItem);
         localStorage.setItem(cacheKey, JSON.stringify(filtered));
-
-        // Background sync to server to guarantee database persistence
-        fetch('/api/sessions/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessions: [{
-              id: sessionId,
-              examId,
-              studentName: payload.studentName || 'Học sinh',
-              studentClass: payload.studentClass || '',
-              sbd: payload.sbd || '',
-              score: result.score,
-              correctCount: result.correctCount,
-              incorrectCount: result.incorrectCount,
-              unansweredCount: result.unansweredCount,
-              status: 'submitted',
-              submittedAt: result.submittedAt || new Date().toISOString(),
-              attemptNumber: result.attemptNumber || payload.attemptNumber || 1,
-              violationCount: payload.violationCount || 0,
-              answers: payload.answers || {}
-            }]
-          })
-        }).catch(() => {});
       }
+
+      // 2. Save to examCode key if distinct
+      if (examCode && examCode !== examId) {
+        const cacheKey = `ncv_submissions_${examCode}`;
+        const existing = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+        const filtered = existing.filter((s: any) => s.sessionId !== submissionItem.sessionId);
+        filtered.unshift(submissionItem);
+        localStorage.setItem(cacheKey, JSON.stringify(filtered));
+      }
+
+      // 3. Save to global submissions cache
+      try {
+        const globalExisting = JSON.parse(localStorage.getItem('ncv_submissions_global_all') || '[]');
+        const globalFiltered = globalExisting.filter((s: any) => s.sessionId !== submissionItem.sessionId);
+        globalFiltered.unshift(submissionItem);
+        localStorage.setItem('ncv_submissions_global_all', JSON.stringify(globalFiltered.slice(0, 500)));
+      } catch (e) {}
+
+      // 4. Dispatch browser custom event for instant cross-tab / UI update
+      if (typeof window !== 'undefined') {
+        try {
+          window.dispatchEvent(new CustomEvent('ncv_submission_update', { detail: submissionItem }));
+          const bc = new BroadcastChannel('ncv_broadcast_sync');
+          bc.postMessage({ type: 'SUBMISSION_SAVED', submission: submissionItem });
+          bc.close();
+        } catch (e) {}
+      }
+
+      // 5. Background sync to server to guarantee database persistence
+      fetch('/api/sessions/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessions: [{
+            id: sessionId,
+            examId: examId || examCode,
+            examCode: examCode || examId,
+            studentName: payload.studentName || 'Học sinh',
+            studentClass: payload.studentClass || '',
+            sbd: payload.sbd || '',
+            score: actualScore,
+            correctCount: result.correctCount,
+            incorrectCount: result.incorrectCount,
+            unansweredCount: result.unansweredCount,
+            status: 'submitted',
+            submittedAt: result.submittedAt || new Date().toISOString(),
+            attemptNumber: result.attemptNumber || payload.attemptNumber || 1,
+            violationCount: payload.violationCount || 0,
+            answers: payload.answers || {}
+          }]
+        })
+      }).catch(() => {});
     } catch (e) {}
 
     return result;
@@ -1412,9 +1466,10 @@ export const api = {
     if (!examId || examId === 'undefined' || examId.trim() === '') {
       return null;
     }
+    const cleanExamId = String(examId).trim();
     let serverData: any = null;
     try {
-      const res = await fetch(`/api/proctor/${encodeURIComponent(examId)}`, {
+      const res = await fetch(`/api/proctor/${encodeURIComponent(cleanExamId)}`, {
         headers: getHeaders(true),
       });
       if (res.ok) {
@@ -1422,30 +1477,72 @@ export const api = {
       }
     } catch {}
 
-    let localSubmissions: any[] = [];
+    // Gather all local submissions matching this exam (by id, by code, or from global list)
+    const localSubmissions: any[] = [];
     try {
-      const localStr = localStorage.getItem(`ncv_submissions_${examId}`);
-      if (localStr) localSubmissions = JSON.parse(localStr);
+      const byId = localStorage.getItem(`ncv_submissions_${cleanExamId}`);
+      if (byId) localSubmissions.push(...JSON.parse(byId));
+
+      const globalRaw = localStorage.getItem('ncv_submissions_global_all');
+      if (globalRaw) {
+        const globalArr = JSON.parse(globalRaw);
+        if (Array.isArray(globalArr)) {
+          globalArr.forEach((s: any) => {
+            if (s && (s.examId === cleanExamId || s.examCode === cleanExamId || String(s.examId).toUpperCase() === cleanExamId.toUpperCase() || String(s.examCode).toUpperCase() === cleanExamId.toUpperCase())) {
+              localSubmissions.push(s);
+            }
+          });
+        }
+      }
+
+      // Scan all other ncv_submissions_ keys in localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('ncv_submissions_') && k !== 'ncv_submissions_global_all' && k !== `ncv_submissions_${cleanExamId}`) {
+          try {
+            const arr = JSON.parse(localStorage.getItem(k) || '[]');
+            if (Array.isArray(arr)) {
+              arr.forEach((it: any) => {
+                if (it && (it.examId === cleanExamId || it.examCode === cleanExamId)) {
+                  localSubmissions.push(it);
+                }
+              });
+            }
+          } catch (e) {}
+        }
+      }
     } catch {}
 
     const students: any[] = Array.isArray(serverData?.students) ? [...serverData.students] : [];
     for (const loc of localSubmissions) {
-      const found = students.some(
+      const foundIdx = students.findIndex(
         s => s.sessionId === loc.sessionId ||
-             (s.studentName === loc.studentName && s.studentClass === loc.studentClass)
+             (String(s.studentName || s.name).trim().toLowerCase() === String(loc.studentName || loc.name).trim().toLowerCase() &&
+              String(s.studentClass || s.class).trim().toLowerCase() === String(loc.studentClass || loc.class).trim().toLowerCase())
       );
-      if (!found) {
+      if (foundIdx >= 0) {
+        // Always update student with latest submitted score and state
+        students[foundIdx] = {
+          ...students[foundIdx],
+          status: loc.status || 'submitted',
+          score: loc.score !== undefined ? loc.score : students[foundIdx].score,
+          bestScore: loc.bestScore !== undefined ? loc.bestScore : students[foundIdx].bestScore,
+          submittedAt: loc.submittedAt || students[foundIdx].submittedAt,
+          answeredCount: loc.answeredCount !== undefined ? loc.answeredCount : students[foundIdx].answeredCount,
+          violationCount: loc.violationCount !== undefined ? loc.violationCount : students[foundIdx].violationCount
+        };
+      } else {
         students.unshift({
           stt: students.length + 1,
           sessionId: loc.sessionId,
           studentName: loc.studentName || loc.name,
           studentClass: loc.studentClass || loc.class,
           sbd: loc.sbd,
-          status: 'submitted',
-          answeredCount: (loc.totalQuestions || 10) - (loc.unansweredCount ?? 0),
+          status: loc.status || 'submitted',
+          answeredCount: loc.answeredCount !== undefined ? loc.answeredCount : (loc.totalQuestions || 10) - (loc.unansweredCount ?? 0),
           totalQuestions: loc.totalQuestions || 10,
           score: loc.score,
-          bestScore: loc.bestScore,
+          bestScore: loc.bestScore ?? loc.score,
           attemptNumber: loc.attemptNumber || 1,
           violationCount: loc.violationCount || 0,
           submittedAt: loc.submittedAt,
@@ -1454,10 +1551,8 @@ export const api = {
       }
     }
 
-
-
     return {
-      ...(serverData || { exam: { id: examId }, stats: {} }),
+      ...(serverData || { exam: { id: cleanExamId }, stats: {} }),
       students,
       stats: {
         total: students.length,
@@ -1487,16 +1582,47 @@ export const api = {
     if (!examId || examId === 'undefined' || examId.trim() === '') {
       return null;
     }
+    const cleanExamId = String(examId).trim();
 
-    let localSubmissions: any[] = [];
+    // Gather all local submissions matching this exam (by id, by code, or from global list)
+    const localSubmissions: any[] = [];
     try {
-      const localStr = localStorage.getItem(`ncv_submissions_${examId}`);
-      if (localStr) localSubmissions = JSON.parse(localStr);
+      const byId = localStorage.getItem(`ncv_submissions_${cleanExamId}`);
+      if (byId) localSubmissions.push(...JSON.parse(byId));
+
+      const globalRaw = localStorage.getItem('ncv_submissions_global_all');
+      if (globalRaw) {
+        const globalArr = JSON.parse(globalRaw);
+        if (Array.isArray(globalArr)) {
+          globalArr.forEach((s: any) => {
+            if (s && (s.examId === cleanExamId || s.examCode === cleanExamId || String(s.examId).toUpperCase() === cleanExamId.toUpperCase() || String(s.examCode).toUpperCase() === cleanExamId.toUpperCase())) {
+              localSubmissions.push(s);
+            }
+          });
+        }
+      }
+
+      // Scan all other ncv_submissions_ keys in localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('ncv_submissions_') && k !== 'ncv_submissions_global_all' && k !== `ncv_submissions_${cleanExamId}`) {
+          try {
+            const arr = JSON.parse(localStorage.getItem(k) || '[]');
+            if (Array.isArray(arr)) {
+              arr.forEach((it: any) => {
+                if (it && (it.examId === cleanExamId || it.examCode === cleanExamId)) {
+                  localSubmissions.push(it);
+                }
+              });
+            }
+          } catch (e) {}
+        }
+      }
     } catch {}
 
     let serverData: any = null;
     try {
-      const res = await fetch(`/api/reports/${encodeURIComponent(examId)}`, {
+      const res = await fetch(`/api/reports/${encodeURIComponent(cleanExamId)}`, {
         headers: getHeaders(true),
       });
       if (res.ok) {
@@ -1507,17 +1633,30 @@ export const api = {
     // Merge server submissions and local submissions
     const combinedSubmissions: any[] = Array.isArray(serverData?.submissions) ? [...serverData.submissions] : [];
     for (const localSub of localSubmissions) {
-      const exists = combinedSubmissions.some(
+      const foundIdx = combinedSubmissions.findIndex(
         s => (s.sessionId && s.sessionId === localSub.sessionId) ||
-             (s.studentName === localSub.studentName && s.studentClass === localSub.studentClass)
+             (String(s.studentName || s.name).trim().toLowerCase() === String(localSub.studentName || localSub.name).trim().toLowerCase() &&
+              String(s.studentClass || s.class).trim().toLowerCase() === String(localSub.studentClass || localSub.class).trim().toLowerCase())
       );
-      if (!exists) {
+      if (foundIdx >= 0) {
+        combinedSubmissions[foundIdx] = {
+          ...combinedSubmissions[foundIdx],
+          ...localSub,
+          score: localSub.score !== undefined ? localSub.score : combinedSubmissions[foundIdx].score,
+          bestScore: localSub.bestScore !== undefined ? localSub.bestScore : combinedSubmissions[foundIdx].bestScore,
+          status: localSub.status || 'submitted',
+          submittedAt: localSub.submittedAt || combinedSubmissions[foundIdx].submittedAt
+        };
+      } else {
         combinedSubmissions.unshift({
           ...localSub,
           name: localSub.name || localSub.studentName,
           studentName: localSub.studentName || localSub.name,
           class: localSub.class || localSub.studentClass,
-          studentClass: localSub.studentClass || localSub.class
+          studentClass: localSub.studentClass || localSub.class,
+          score: localSub.score ?? localSub.bestScore ?? 0,
+          bestScore: localSub.bestScore ?? localSub.score ?? 0,
+          status: localSub.status || 'submitted'
         });
       }
     }

@@ -151,7 +151,7 @@
           "explanation": "Hàm SUM dùng để tính tổng chuỗi dữ liệu trong dải ô."
         }
       ],
-      "updatedAt": "2026-10-15T14:56:17.891Z"
+      "updatedAt": "2026-10-17T09:43:40.909Z"
     },
     {
       "id": "exam-1791604725287",
@@ -426,229 +426,10 @@
           "explanation": "Ctrl + M dùng để chèn thêm slide mới trong PowerPoint."
         }
       ],
-      "updatedAt": "2026-10-15T14:56:17.891Z"
+      "updatedAt": "2026-10-17T09:43:40.909Z"
     }
   ],
-  "sessions": [
-    {
-      "id": "ses-seed-1",
-      "examId": "exam-1791604725287",
-      "studentName": "Nguyễn Chí Huân",
-      "studentClass": "9A8",
-      "sbd": "15",
-      "startedAt": "2026-10-15T08:00:00.000Z",
-      "expiresAt": "2026-10-15T08:45:00.000Z",
-      "submittedAt": "2026-10-15T08:32:10.000Z",
-      "lastHeartbeat": "2026-10-15T08:32:10.000Z",
-      "status": "submitted",
-      "score": 10,
-      "correctCount": 10,
-      "incorrectCount": 0,
-      "unansweredCount": 0,
-      "attemptNumber": 1,
-      "violationCount": 0,
-      "violations": [],
-      "answers": {
-        "q_tin9_1": "A",
-        "q_tin9_2": "A",
-        "q_tin9_3": "A",
-        "q_tin9_4": "A",
-        "q_tin9_5": "A",
-        "q_tin9_6": "A",
-        "q_tin9_7": "A",
-        "q_tin9_8": "A",
-        "q_tin9_9": "A",
-        "q_tin9_10": "A"
-      }
-    },
-    {
-      "id": "ses-seed-2",
-      "examId": "exam-1791604725287",
-      "studentName": "Trần Thị Thanh Mai",
-      "studentClass": "9A8",
-      "sbd": "22",
-      "startedAt": "2026-10-15T08:00:00.000Z",
-      "expiresAt": "2026-10-15T08:45:00.000Z",
-      "submittedAt": "2026-10-15T08:35:40.000Z",
-      "lastHeartbeat": "2026-10-15T08:35:40.000Z",
-      "status": "submitted",
-      "score": 9,
-      "correctCount": 9,
-      "incorrectCount": 1,
-      "unansweredCount": 0,
-      "attemptNumber": 1,
-      "violationCount": 0,
-      "violations": [],
-      "answers": {
-        "q_tin9_1": "A",
-        "q_tin9_2": "A",
-        "q_tin9_3": "A",
-        "q_tin9_4": "A",
-        "q_tin9_5": "A",
-        "q_tin9_6": "A",
-        "q_tin9_7": "A",
-        "q_tin9_8": "A",
-        "q_tin9_9": "B",
-        "q_tin9_10": "A"
-      }
-    },
-    {
-      "id": "ses-seed-3",
-      "examId": "exam-1791604725287",
-      "studentName": "Lê Gia Lợi",
-      "studentClass": "9A8",
-      "sbd": "01",
-      "startedAt": "2026-10-15T08:00:00.000Z",
-      "expiresAt": "2026-10-15T08:45:00.000Z",
-      "submittedAt": "2026-10-15T08:38:15.000Z",
-      "lastHeartbeat": "2026-10-15T08:38:15.000Z",
-      "status": "submitted",
-      "score": 9,
-      "correctCount": 9,
-      "incorrectCount": 1,
-      "unansweredCount": 0,
-      "attemptNumber": 1,
-      "violationCount": 0,
-      "violations": [],
-      "answers": {
-        "q_tin9_1": "A",
-        "q_tin9_2": "A",
-        "q_tin9_3": "A",
-        "q_tin9_4": "A",
-        "q_tin9_5": "A",
-        "q_tin9_6": "A",
-        "q_tin9_7": "A",
-        "q_tin9_8": "B",
-        "q_tin9_9": "A",
-        "q_tin9_10": "A"
-      }
-    },
-    {
-      "id": "ses-seed-4",
-      "examId": "exam-1791604725287",
-      "studentName": "Phạm Đức Minh",
-      "studentClass": "9A9",
-      "sbd": "10",
-      "startedAt": "2026-10-15T08:00:00.000Z",
-      "expiresAt": "2026-10-15T08:45:00.000Z",
-      "submittedAt": "2026-10-15T08:40:00.000Z",
-      "lastHeartbeat": "2026-10-15T08:40:00.000Z",
-      "status": "submitted",
-      "score": 8,
-      "correctCount": 8,
-      "incorrectCount": 2,
-      "unansweredCount": 0,
-      "attemptNumber": 1,
-      "violationCount": 1,
-      "violations": [
-        {
-          "type": "tab_switch",
-          "description": "Rời khỏi màn hình kiểm tra",
-          "timestamp": "2026-10-15T08:15:20.000Z"
-        }
-      ],
-      "answers": {
-        "q_tin9_1": "A",
-        "q_tin9_2": "A",
-        "q_tin9_3": "A",
-        "q_tin9_4": "A",
-        "q_tin9_5": "A",
-        "q_tin9_6": "A",
-        "q_tin9_7": "B",
-        "q_tin9_8": "C",
-        "q_tin9_9": "A",
-        "q_tin9_10": "A"
-      }
-    },
-    {
-      "id": "ses-seed-5",
-      "examId": "exam-1791604725287",
-      "studentName": "Hoàng Anh Tuấn",
-      "studentClass": "9A9",
-      "sbd": "35",
-      "startedAt": "2026-10-15T08:00:00.000Z",
-      "expiresAt": "2026-10-15T08:45:00.000Z",
-      "submittedAt": "2026-10-15T08:41:20.000Z",
-      "lastHeartbeat": "2026-10-15T08:41:20.000Z",
-      "status": "submitted",
-      "score": 7,
-      "correctCount": 7,
-      "incorrectCount": 3,
-      "unansweredCount": 0,
-      "attemptNumber": 1,
-      "violationCount": 0,
-      "violations": [],
-      "answers": {
-        "q_tin9_1": "A",
-        "q_tin9_2": "A",
-        "q_tin9_3": "A",
-        "q_tin9_4": "A",
-        "q_tin9_5": "A",
-        "q_tin9_6": "B",
-        "q_tin9_7": "B",
-        "q_tin9_8": "C",
-        "q_tin9_9": "A",
-        "q_tin9_10": "A"
-      }
-    },
-    {
-      "id": "ses-seed-6",
-      "examId": "exam-1791604725287",
-      "studentName": "Võ Thị Bích Ngọc",
-      "studentClass": "9B",
-      "sbd": "18",
-      "startedAt": "2026-10-15T08:00:00.000Z",
-      "expiresAt": "2026-10-15T08:45:00.000Z",
-      "submittedAt": "2026-10-15T08:30:50.000Z",
-      "lastHeartbeat": "2026-10-15T08:30:50.000Z",
-      "status": "submitted",
-      "score": 9,
-      "correctCount": 9,
-      "incorrectCount": 1,
-      "unansweredCount": 0,
-      "attemptNumber": 1,
-      "violationCount": 0,
-      "violations": [],
-      "answers": {
-        "q_tin9_1": "A",
-        "q_tin9_2": "A",
-        "q_tin9_3": "A",
-        "q_tin9_4": "A",
-        "q_tin9_5": "A",
-        "q_tin9_6": "A",
-        "q_tin9_7": "A",
-        "q_tin9_8": "A",
-        "q_tin9_9": "A",
-        "q_tin9_10": "C"
-      }
-    },
-    {
-      "id": "ses-seed-7",
-      "examId": "exam-thu-ncv",
-      "studentName": "Học Sinh Thử Nghiệm 1",
-      "studentClass": "THU",
-      "sbd": "THU-02",
-      "startedAt": "2026-10-15T08:00:00.000Z",
-      "expiresAt": "2026-10-15T08:45:00.000Z",
-      "submittedAt": "2026-10-15T08:25:00.000Z",
-      "lastHeartbeat": "2026-10-15T08:25:00.000Z",
-      "status": "submitted",
-      "score": 10,
-      "correctCount": 5,
-      "incorrectCount": 0,
-      "unansweredCount": 0,
-      "attemptNumber": 1,
-      "violationCount": 0,
-      "violations": [],
-      "answers": {
-        "q1": "A",
-        "q2": "A",
-        "q3": "A",
-        "q4": "A",
-        "q5": "A"
-      }
-    }
-  ],
+  "sessions": [],
   "classes": [
     {
       "name": "THU",
@@ -916,7 +697,10 @@
     "exam-tin6-ncv",
     "exam-tin9-ncv",
     "exam-tin8-hk1",
-    "undefined"
+    "undefined",
+    "test-del-1792230143405",
+    "exam-1792230220867",
+    "DEL9071"
   ],
   "adminToken": "legialoi-ncv-session-secret",
   "adminPassword": "101   101!@#"

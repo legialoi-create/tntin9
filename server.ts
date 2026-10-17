@@ -1260,19 +1260,23 @@ function gradeAndSubmit(session: ExamSession, exam: Exam, res: Response) {
 
   return res.json({
     success: true,
-    score: exam.showScoreAfterSubmit ? score : undefined,
-    bestScore: exam.showScoreAfterSubmit ? bestScore : undefined,
+    score: score,
+    bestScore: bestScore,
+    studentScore: exam.showScoreAfterSubmit !== false ? score : undefined,
+    studentBestScore: exam.showScoreAfterSubmit !== false ? bestScore : undefined,
+    examId: exam.id,
+    examCode: exam.code,
     attemptNumber: session.attemptNumber || attemptsMade,
     attemptsMade,
     maxAttempts,
     attemptsRemaining,
     canRetake: attemptsRemaining > 0,
-    correctCount: exam.showScoreAfterSubmit ? correctCount : undefined,
-    incorrectCount: exam.showScoreAfterSubmit ? incorrectCount : undefined,
+    correctCount,
+    incorrectCount,
     answeredCount,
     unansweredCount,
     totalQuestions,
-    showScore: exam.showScoreAfterSubmit,
+    showScore: exam.showScoreAfterSubmit !== false,
     submittedAt: session.submittedAt
   });
 }
@@ -1473,6 +1477,16 @@ app.post('/api/student/heartbeat', (req: Request, res: Response) => {
       success: true,
       isLocked: false,
       status: 'in_progress'
+    });
+  }
+
+  // If already submitted, preserve submission and score
+  if (session.status === 'submitted') {
+    return res.json({
+      success: true,
+      isLocked: false,
+      status: 'submitted',
+      score: session.score
     });
   }
 

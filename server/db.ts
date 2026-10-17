@@ -413,9 +413,6 @@ class DatabaseManager {
              (e.id && e.id.trim().toUpperCase() === normalized)
       );
     }
-    if (!found && this.data.exams && this.data.exams.length > 0) {
-      found = this.data.exams.find(e => e.isOpen) || this.data.exams[0];
-    }
     return found;
   }
 
@@ -433,16 +430,28 @@ class DatabaseManager {
   }
 
   public deleteExam(id: string): boolean {
-    const initialLen = this.data.exams.length;
-    this.data.exams = this.data.exams.filter(e => e.id !== id);
+    const targetExam = this.data.exams.find(e => e.id === id || e.code === id);
+    const code = targetExam?.code;
+    const realId = targetExam?.id || id;
+
+    this.data.exams = this.data.exams.filter(e => e.id !== realId && (code ? e.code !== code : true));
     if (!this.data.deletedExamIds) {
       this.data.deletedExamIds = [];
     }
-    if (!this.data.deletedExamIds.includes(id)) {
-      this.data.deletedExamIds.push(id);
+    if (!this.data.deletedExamIds.includes(realId)) {
+      this.data.deletedExamIds.push(realId);
     }
-    // As specifically requested: only when teacher explicitly deletes the exam are attached sessions, scores, and violations removed
-    this.data.sessions = this.data.sessions.filter(s => s.examId !== id);
+    if (code && !this.data.deletedExamIds.includes(code)) {
+      this.data.deletedExamIds.push(code);
+    }
+    // As specifically requested: when teacher explicitly deletes the exam, all attached sessions, scores, and violations are purged
+    this.data.sessions = this.data.sessions.filter(s => {
+      if (!s || !s.examId) return false;
+      const sId = String(s.examId).trim().toUpperCase();
+      const matchReal = sId === realId.toUpperCase();
+      const matchCode = code ? sId === code.toUpperCase() : false;
+      return !matchReal && !matchCode;
+    });
     this.persist();
     return true;
   }
@@ -451,6 +460,12 @@ class DatabaseManager {
   public getSessions(examId?: string): ExamSession[] {
     if (!examId) return this.data.sessions;
     const cleanId = String(examId).trim().toUpperCase();
+
+    // If exam was marked deleted, never return sessions
+    if (this.data.deletedExamIds?.some(id => id.toUpperCase() === cleanId)) {
+      return [];
+    }
+
     const exam = this.data.exams.find(e => e.id.toUpperCase() === cleanId || (e.code && e.code.trim().toUpperCase() === cleanId));
     const code = exam?.code?.trim().toUpperCase();
     const targetId = exam?.id?.trim().toUpperCase() || cleanId;
