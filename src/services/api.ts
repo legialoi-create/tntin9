@@ -1,5 +1,6 @@
 import { Exam, ExamSession, ClassInfo, StudentInfo, ExamStats, StudentQuestion, Question, QuestionOption } from '../types';
 import { SEED_APP_DATA } from '../../server/seedData';
+import { savePermanentSubmission, getSubmissionsFromFirestore, deleteSubmissionsForExamFromFirestore } from './firebase';
 
 let teacherToken: string | null = localStorage.getItem('ncv_teacher_token');
 
@@ -471,6 +472,11 @@ export const api = {
         method: 'DELETE',
         headers: getHeaders(true),
       });
+    } catch (e) {}
+
+    // Delete permanent submissions from Firebase Firestore
+    try {
+      deleteSubmissionsForExamFromFirestore(id).catch(() => {});
     } catch (e) {}
   },
 
@@ -1489,6 +1495,29 @@ export const api = {
           }]
         })
       }).catch(() => {});
+
+      // 6. Save PERMANENTLY to Firebase Firestore on final submission (Optimized: 0 writes while taking test, 1 write on submit)
+      try {
+        savePermanentSubmission({
+          sessionId,
+          examId: examId || examCode,
+          examCode: examCode || examId,
+          studentName: payload.studentName || 'Học sinh',
+          studentClass: payload.studentClass || '',
+          sbd: payload.sbd || '',
+          score: actualScore,
+          bestScore: actualBestScore,
+          correctCount: result.correctCount ?? 0,
+          incorrectCount: result.incorrectCount ?? 0,
+          unansweredCount: result.unansweredCount ?? 0,
+          totalQuestions: result.totalQuestions || 10,
+          attemptNumber: result.attemptNumber || payload.attemptNumber || 1,
+          violationCount: payload.violationCount || 0,
+          submittedAt: result.submittedAt || new Date().toISOString(),
+          status: 'submitted',
+          answers: payload.answers || {}
+        }).catch((err) => console.warn('[Firebase] Save submission error:', err));
+      } catch (e) {}
     } catch (e) {}
 
     return result;
@@ -1545,6 +1574,16 @@ export const api = {
         }
       }
     } catch {}
+
+    // Merge permanent submissions from Firebase Firestore (Cross-container & cross-device reliability on Vercel)
+    try {
+      const fbSubs = await getSubmissionsFromFirestore(cleanExamId);
+      for (const fb of fbSubs) {
+        if (!localSubmissions.some((s) => s.sessionId === fb.sessionId)) {
+          localSubmissions.push(fb);
+        }
+      }
+    } catch (e) {}
 
     const students: any[] = Array.isArray(serverData?.students) ? [...serverData.students] : [];
     for (const loc of localSubmissions) {
@@ -1662,6 +1701,16 @@ export const api = {
         serverData = await res.json();
       }
     } catch (err) {}
+
+    // Merge permanent submissions from Firebase Firestore (Cross-container & cross-device reliability on Vercel)
+    try {
+      const fbSubs = await getSubmissionsFromFirestore(cleanExamId);
+      for (const fb of fbSubs) {
+        if (!localSubmissions.some((s) => s.sessionId === fb.sessionId)) {
+          localSubmissions.push(fb);
+        }
+      }
+    } catch (e) {}
 
     // Merge server submissions and local submissions
     const combinedSubmissions: any[] = Array.isArray(serverData?.submissions) ? [...serverData.submissions] : [];
