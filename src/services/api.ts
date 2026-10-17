@@ -566,53 +566,51 @@ export const api = {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) localClasses = parsed;
+        if (Array.isArray(parsed)) localClasses = parsed;
       } catch (e) {}
     }
+
+    // Get deleted classes blacklist
+    const deletedClasses: string[] = [];
+    try {
+      const delArr = JSON.parse(localStorage.getItem('ncv_deleted_classes') || '[]');
+      if (Array.isArray(delArr)) {
+        delArr.forEach((c: string) => deletedClasses.push(String(c).trim().toUpperCase()));
+      }
+    } catch (e) {}
 
     try {
       const res = await fetch('/api/classes');
       if (res.ok) {
         const serverData = await res.json();
-        if (Array.isArray(serverData) && serverData.length > 0) {
-          const classMap = new Map<string, ClassInfo>();
-          serverData.forEach((c: ClassInfo) => classMap.set(c.name.trim().toUpperCase(), c));
-          for (const localC of localClasses) {
-            const key = localC.name.trim().toUpperCase();
-            if (!classMap.has(key)) {
-              classMap.set(key, localC);
-            }
-          }
-          const merged = Array.from(classMap.values());
-          localStorage.setItem('ncv_classes_data', JSON.stringify(merged));
-          return merged;
+        if (Array.isArray(serverData)) {
+          const cleanServer = serverData.filter((c: ClassInfo) => !deletedClasses.includes(c.name.trim().toUpperCase()));
+          localStorage.setItem('ncv_classes_data', JSON.stringify(cleanServer));
+          return cleanServer;
         }
       }
     } catch (e) {
       // offline / cold start
     }
 
-    if (localClasses.length > 0) return localClasses;
+    if (localClasses.length > 0) {
+      return localClasses.filter((c: ClassInfo) => !deletedClasses.includes(c.name.trim().toUpperCase()));
+    }
 
-    return [
-      { name: '9A8', grade: 9, studentCount: 38 },
-      { name: '9A9', grade: 9, studentCount: 40 },
-      { name: '9A', grade: 9, studentCount: 36 },
-      { name: '9B', grade: 9, studentCount: 35 },
-      { name: '9C', grade: 9, studentCount: 35 },
-      { name: '8A', grade: 8, studentCount: 38 },
-      { name: '8B', grade: 8, studentCount: 37 },
-      { name: '8C', grade: 8, studentCount: 36 },
-      { name: '7A', grade: 7, studentCount: 36 },
-      { name: '7B', grade: 7, studentCount: 35 },
-      { name: '7C', grade: 7, studentCount: 34 },
-      { name: '6A', grade: 6, studentCount: 35 },
-      { name: '6B', grade: 6, studentCount: 34 },
-      { name: '6C', grade: 6, studentCount: 35 },
-    ];
+    return [];
   },
 
   saveClasses: async (classes: ClassInfo[]): Promise<ClassInfo[]> => {
+    // If a class in classes was previously marked deleted, un-delete it
+    try {
+      const delArr = JSON.parse(localStorage.getItem('ncv_deleted_classes') || '[]');
+      if (Array.isArray(delArr) && delArr.length > 0) {
+        const activeUpper = new Set(classes.map(c => c.name.trim().toUpperCase()));
+        const remaining = delArr.filter((name: string) => !activeUpper.has(name));
+        localStorage.setItem('ncv_deleted_classes', JSON.stringify(remaining));
+      }
+    } catch (e) {}
+
     localStorage.setItem('ncv_classes_data', JSON.stringify(classes));
     try {
       const res = await fetch('/api/classes', {
@@ -634,30 +632,65 @@ export const api = {
   },
 
   deleteClass: async (className: string) => {
-    const cached = localStorage.getItem('ncv_classes_data');
+    const trimmed = className.trim();
+    const upper = trimmed.toUpperCase();
+
+    // 1. Add to local deleted classes blacklist
+    try {
+      const delArr = JSON.parse(localStorage.getItem('ncv_deleted_classes') || '[]');
+      if (Array.isArray(delArr) && !delArr.includes(upper)) {
+        delArr.push(upper);
+        localStorage.setItem('ncv_deleted_classes', JSON.stringify(delArr));
+      }
+    } catch (e) {}
+
+    // 2. Remove from local classes
     let updated: ClassInfo[] = [];
+    const cached = localStorage.getItem('ncv_classes_data');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed)) {
-          updated = parsed.filter((c: ClassInfo) => c.name.toLowerCase() !== className.toLowerCase());
+          updated = parsed.filter((c: ClassInfo) => c.name.trim().toUpperCase() !== upper);
           localStorage.setItem('ncv_classes_data', JSON.stringify(updated));
         }
       } catch (e) {}
     }
+
+    // 3. Remove students of this class from local storage
     try {
-      const res = await fetch(`/api/classes/${encodeURIComponent(className)}`, {
+      const cachedStudents = localStorage.getItem('ncv_students_data');
+      if (cachedStudents) {
+        const parsedSt = JSON.parse(cachedStudents);
+        if (Array.isArray(parsedSt)) {
+          const filteredSt = parsedSt.filter((s: StudentInfo) => s.class.trim().toUpperCase() !== upper);
+          localStorage.setItem('ncv_students_data', JSON.stringify(filteredSt));
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const res = await fetch(`/api/classes/${encodeURIComponent(trimmed)}`, {
         method: 'DELETE',
         headers: getHeaders(true),
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        if (data.classes && Array.isArray(data.classes)) {
+          const clean = data.classes.filter((c: ClassInfo) => c.name.trim().toUpperCase() !== upper);
+          localStorage.setItem('ncv_classes_data', JSON.stringify(clean));
+          return { ...data, classes: clean };
+        }
+        return data;
       }
     } catch (e) {}
-    return { success: true, message: `Đã xóa lớp ${className} thành công`, classes: updated };
+    return { success: true, message: `Đã xóa lớp ${trimmed} thành công`, classes: updated };
   },
 
   restoreDefaultClasses: async () => {
+    try {
+      localStorage.removeItem('ncv_deleted_classes');
+    } catch (e) {}
     const defaultClasses: ClassInfo[] = [
       { name: '9A8', grade: 9, studentCount: 38 },
       { name: '9A9', grade: 9, studentCount: 40 },

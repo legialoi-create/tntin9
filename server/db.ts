@@ -12,6 +12,8 @@ interface DatabaseSchema {
   adminToken: string;
   adminPassword?: string;
   deletedExamIds?: string[];
+  deletedClassNames?: string[];
+  deletedStudentIds?: string[];
 }
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -110,6 +112,8 @@ class DatabaseManager {
           isPasswordChanged: false
         })),
         deletedExamIds: [],
+        deletedClassNames: [],
+        deletedStudentIds: [],
         adminToken: 'legialoi-ncv-session-secret',
         adminPassword: '101   101!@#'
       };
@@ -151,12 +155,29 @@ class DatabaseManager {
     }
 
     if (parsedList.length > 0) {
-      // 1. Gather deletedExamIds tombstone set
+      // 1. Gather tombstones for deleted exams, classes, and students
       const deletedExamIdsSet = new Set<string>();
+      const deletedClassNamesSet = new Set<string>();
+      const deletedStudentIdsSet = new Set<string>();
+
       for (const p of parsedList) {
         if (Array.isArray(p.deletedExamIds)) {
           p.deletedExamIds.forEach((id: string) => {
             if (typeof id === 'string') deletedExamIdsSet.add(id);
+          });
+        }
+        if (Array.isArray(p.deletedClassNames)) {
+          p.deletedClassNames.forEach((name: string) => {
+            if (typeof name === 'string' && name.trim()) {
+              deletedClassNamesSet.add(name.trim().toUpperCase());
+            }
+          });
+        }
+        if (Array.isArray(p.deletedStudentIds)) {
+          p.deletedStudentIds.forEach((id: string) => {
+            if (typeof id === 'string' && id.trim()) {
+              deletedStudentIdsSet.add(id.trim());
+            }
           });
         }
       }
@@ -236,41 +257,53 @@ class DatabaseManager {
         }
       }
 
-      // 4. Merge Classes
+      // 4. Merge Classes: Respect teacher's deleted classes tombstone
       const classMap = new Map<string, ClassInfo>();
       for (const defC of DEFAULT_CLASSES) {
-        classMap.set(defC.name.trim().toUpperCase(), defC);
+        const upper = defC.name.trim().toUpperCase();
+        if (!deletedClassNamesSet.has(upper)) {
+          classMap.set(upper, defC);
+        }
       }
       for (const p of parsedList) {
         if (Array.isArray(p.classes)) {
           for (const c of p.classes) {
             if (c && c.name) {
-              classMap.set(c.name.trim().toUpperCase(), c);
+              const upper = c.name.trim().toUpperCase();
+              if (!deletedClassNamesSet.has(upper)) {
+                classMap.set(upper, c);
+              }
             }
           }
         }
       }
 
-      // 5. Merge Students
+      // 5. Merge Students: Respect teacher's deleted students and deleted classes tombstone
       const studentMap = new Map<string, StudentInfo>();
       for (const defS of DEFAULT_STUDENTS) {
-        studentMap.set(defS.id, {
-          ...defS,
-          username: generateStudentUsername(defS.name, defS.class),
-          password: getDefaultStudentPassword(defS.class),
-          isPasswordChanged: false
-        });
+        const clsUpper = (defS.class || '').trim().toUpperCase();
+        if (!deletedStudentIdsSet.has(defS.id) && !deletedClassNamesSet.has(clsUpper)) {
+          studentMap.set(defS.id, {
+            ...defS,
+            username: generateStudentUsername(defS.name, defS.class),
+            password: getDefaultStudentPassword(defS.class),
+            isPasswordChanged: false
+          });
+        }
       }
       for (const p of parsedList) {
         if (Array.isArray(p.students)) {
           for (const st of p.students) {
             if (st && st.id) {
-              studentMap.set(st.id, {
-                ...st,
-                username: st.username || generateStudentUsername(st.name, st.class),
-                password: st.password || getDefaultStudentPassword(st.class),
-                isPasswordChanged: !!st.isPasswordChanged
-              });
+              const clsUpper = (st.class || '').trim().toUpperCase();
+              if (!deletedStudentIdsSet.has(st.id) && !deletedClassNamesSet.has(clsUpper)) {
+                studentMap.set(st.id, {
+                  ...st,
+                  username: st.username || generateStudentUsername(st.name, st.class),
+                  password: st.password || getDefaultStudentPassword(st.class),
+                  isPasswordChanged: !!st.isPasswordChanged
+                });
+              }
             }
           }
         }
@@ -285,6 +318,8 @@ class DatabaseManager {
         classes: Array.from(classMap.values()),
         students: Array.from(studentMap.values()),
         deletedExamIds: Array.from(deletedExamIdsSet),
+        deletedClassNames: Array.from(deletedClassNamesSet),
+        deletedStudentIds: Array.from(deletedStudentIdsSet),
         adminToken: parsedList.find(p => p.adminToken)?.adminToken || 'legialoi-ncv-session-secret',
         adminPassword: parsedList.find(p => p.adminPassword)?.adminPassword || '101   101!@#'
       };
@@ -305,6 +340,8 @@ class DatabaseManager {
         isPasswordChanged: false
       })),
       deletedExamIds: [],
+      deletedClassNames: [],
+      deletedStudentIds: [],
       adminToken: 'legialoi-ncv-session-secret',
       adminPassword: '101   101!@#'
     };
@@ -522,28 +559,47 @@ class DatabaseManager {
 
   public saveClasses(classes: ClassInfo[]): void {
     this.data.classes = classes;
+    if (this.data.deletedClassNames && Array.isArray(classes)) {
+      const activeUpper = new Set(classes.map(c => c.name.trim().toUpperCase()));
+      this.data.deletedClassNames = this.data.deletedClassNames.filter(name => !activeUpper.has(name));
+    }
     this.persist();
   }
 
   public deleteClass(className: string): boolean {
-    const trimmed = className.trim().toLowerCase();
-    const prevLen = this.data.classes.length;
-    this.data.classes = this.data.classes.filter(c => c.name.trim().toLowerCase() !== trimmed);
-    if (this.data.classes.length !== prevLen) {
-      // Also remove all students belonging to this class
-      this.data.students = this.data.students.filter(s => s.class.trim().toLowerCase() !== trimmed);
-      this.persist();
-      return true;
+    const trimmed = className.trim();
+    const upper = trimmed.toUpperCase();
+    if (!this.data.deletedClassNames) {
+      this.data.deletedClassNames = [];
     }
-    return false;
+    if (!this.data.deletedClassNames.includes(upper)) {
+      this.data.deletedClassNames.push(upper);
+    }
+    // Also mark all student IDs in this class as deleted tombstones
+    if (!this.data.deletedStudentIds) {
+      this.data.deletedStudentIds = [];
+    }
+    const studentsInClass = this.data.students.filter(s => s.class.trim().toUpperCase() === upper);
+    studentsInClass.forEach(s => {
+      if (!this.data.deletedStudentIds!.includes(s.id)) {
+        this.data.deletedStudentIds!.push(s.id);
+      }
+    });
+
+    this.data.classes = this.data.classes.filter(c => c.name.trim().toUpperCase() !== upper);
+    this.data.students = this.data.students.filter(s => s.class.trim().toUpperCase() !== upper);
+    this.persist();
+    return true;
   }
 
   public restoreDefaultClasses(): { classes: ClassInfo[]; students: StudentInfo[] } {
+    this.data.deletedClassNames = [];
+    this.data.deletedStudentIds = [];
     this.data.classes = [...DEFAULT_CLASSES];
     this.data.students = [...DEFAULT_STUDENTS];
     // sync student counts
     this.data.classes.forEach(c => {
-      const cnt = this.data.students.filter(s => s.class === c.name).length;
+      const cnt = this.data.students.filter(s => s.class.trim().toUpperCase() === c.name.trim().toUpperCase()).length;
       if (cnt > 0) c.studentCount = cnt;
     });
     this.persist();
@@ -565,26 +621,36 @@ class DatabaseManager {
   }
 
   public deleteStudent(studentId: string): boolean {
-    const prevLen = this.data.students.length;
     const student = this.data.students.find(s => s.id === studentId);
     if (!student) return false;
-    this.data.students = this.data.students.filter(s => s.id !== studentId);
-    if (this.data.students.length !== prevLen) {
-      // decrement studentCount in class
-      const cls = this.data.classes.find(c => c.name.toLowerCase() === student.class.toLowerCase());
-      if (cls && cls.studentCount && cls.studentCount > 0) {
-        cls.studentCount--;
-      }
-      this.persist();
-      return true;
+    if (!this.data.deletedStudentIds) {
+      this.data.deletedStudentIds = [];
     }
-    return false;
+    if (!this.data.deletedStudentIds.includes(studentId)) {
+      this.data.deletedStudentIds.push(studentId);
+    }
+    this.data.students = this.data.students.filter(s => s.id !== studentId);
+    const cls = this.data.classes.find(c => c.name.toLowerCase() === student.class.toLowerCase());
+    if (cls && cls.studentCount && cls.studentCount > 0) {
+      cls.studentCount--;
+    }
+    this.persist();
+    return true;
   }
 
   public deleteClassStudents(className: string): void {
-    const trimmed = className.trim().toLowerCase();
-    this.data.students = this.data.students.filter(s => s.class.trim().toLowerCase() !== trimmed);
-    const cls = this.data.classes.find(c => c.name.trim().toLowerCase() === trimmed);
+    const upper = className.trim().toUpperCase();
+    if (!this.data.deletedStudentIds) {
+      this.data.deletedStudentIds = [];
+    }
+    const targetStudents = this.data.students.filter(s => s.class.trim().toUpperCase() === upper);
+    targetStudents.forEach(s => {
+      if (!this.data.deletedStudentIds!.includes(s.id)) {
+        this.data.deletedStudentIds!.push(s.id);
+      }
+    });
+    this.data.students = this.data.students.filter(s => s.class.trim().toUpperCase() !== upper);
+    const cls = this.data.classes.find(c => c.name.trim().toUpperCase() === upper);
     if (cls) {
       cls.studentCount = 0;
     }

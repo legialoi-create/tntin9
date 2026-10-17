@@ -352,6 +352,8 @@ var DatabaseManager = class {
           isPasswordChanged: false
         })),
         deletedExamIds: [],
+        deletedClassNames: [],
+        deletedStudentIds: [],
         adminToken: "legialoi-ncv-session-secret",
         adminPassword: "101   101!@#"
       };
@@ -390,10 +392,26 @@ var DatabaseManager = class {
     }
     if (parsedList.length > 0) {
       const deletedExamIdsSet = /* @__PURE__ */ new Set();
+      const deletedClassNamesSet = /* @__PURE__ */ new Set();
+      const deletedStudentIdsSet = /* @__PURE__ */ new Set();
       for (const p of parsedList) {
         if (Array.isArray(p.deletedExamIds)) {
           p.deletedExamIds.forEach((id) => {
             if (typeof id === "string") deletedExamIdsSet.add(id);
+          });
+        }
+        if (Array.isArray(p.deletedClassNames)) {
+          p.deletedClassNames.forEach((name) => {
+            if (typeof name === "string" && name.trim()) {
+              deletedClassNamesSet.add(name.trim().toUpperCase());
+            }
+          });
+        }
+        if (Array.isArray(p.deletedStudentIds)) {
+          p.deletedStudentIds.forEach((id) => {
+            if (typeof id === "string" && id.trim()) {
+              deletedStudentIdsSet.add(id.trim());
+            }
           });
         }
       }
@@ -461,36 +479,48 @@ var DatabaseManager = class {
       }
       const classMap = /* @__PURE__ */ new Map();
       for (const defC of DEFAULT_CLASSES) {
-        classMap.set(defC.name.trim().toUpperCase(), defC);
+        const upper = defC.name.trim().toUpperCase();
+        if (!deletedClassNamesSet.has(upper)) {
+          classMap.set(upper, defC);
+        }
       }
       for (const p of parsedList) {
         if (Array.isArray(p.classes)) {
           for (const c of p.classes) {
             if (c && c.name) {
-              classMap.set(c.name.trim().toUpperCase(), c);
+              const upper = c.name.trim().toUpperCase();
+              if (!deletedClassNamesSet.has(upper)) {
+                classMap.set(upper, c);
+              }
             }
           }
         }
       }
       const studentMap = /* @__PURE__ */ new Map();
       for (const defS of DEFAULT_STUDENTS) {
-        studentMap.set(defS.id, {
-          ...defS,
-          username: generateStudentUsername(defS.name, defS.class),
-          password: getDefaultStudentPassword(defS.class),
-          isPasswordChanged: false
-        });
+        const clsUpper = (defS.class || "").trim().toUpperCase();
+        if (!deletedStudentIdsSet.has(defS.id) && !deletedClassNamesSet.has(clsUpper)) {
+          studentMap.set(defS.id, {
+            ...defS,
+            username: generateStudentUsername(defS.name, defS.class),
+            password: getDefaultStudentPassword(defS.class),
+            isPasswordChanged: false
+          });
+        }
       }
       for (const p of parsedList) {
         if (Array.isArray(p.students)) {
           for (const st of p.students) {
             if (st && st.id) {
-              studentMap.set(st.id, {
-                ...st,
-                username: st.username || generateStudentUsername(st.name, st.class),
-                password: st.password || getDefaultStudentPassword(st.class),
-                isPasswordChanged: !!st.isPasswordChanged
-              });
+              const clsUpper = (st.class || "").trim().toUpperCase();
+              if (!deletedStudentIdsSet.has(st.id) && !deletedClassNamesSet.has(clsUpper)) {
+                studentMap.set(st.id, {
+                  ...st,
+                  username: st.username || generateStudentUsername(st.name, st.class),
+                  password: st.password || getDefaultStudentPassword(st.class),
+                  isPasswordChanged: !!st.isPasswordChanged
+                });
+              }
             }
           }
         }
@@ -502,6 +532,8 @@ var DatabaseManager = class {
         classes: Array.from(classMap.values()),
         students: Array.from(studentMap.values()),
         deletedExamIds: Array.from(deletedExamIdsSet),
+        deletedClassNames: Array.from(deletedClassNamesSet),
+        deletedStudentIds: Array.from(deletedStudentIdsSet),
         adminToken: parsedList.find((p) => p.adminToken)?.adminToken || "legialoi-ncv-session-secret",
         adminPassword: parsedList.find((p) => p.adminPassword)?.adminPassword || "101   101!@#"
       };
@@ -519,6 +551,8 @@ var DatabaseManager = class {
         isPasswordChanged: false
       })),
       deletedExamIds: [],
+      deletedClassNames: [],
+      deletedStudentIds: [],
       adminToken: "legialoi-ncv-session-secret",
       adminPassword: "101   101!@#"
     };
@@ -705,24 +739,42 @@ var DatabaseManager = class {
   }
   saveClasses(classes) {
     this.data.classes = classes;
+    if (this.data.deletedClassNames && Array.isArray(classes)) {
+      const activeUpper = new Set(classes.map((c) => c.name.trim().toUpperCase()));
+      this.data.deletedClassNames = this.data.deletedClassNames.filter((name) => !activeUpper.has(name));
+    }
     this.persist();
   }
   deleteClass(className) {
-    const trimmed = className.trim().toLowerCase();
-    const prevLen = this.data.classes.length;
-    this.data.classes = this.data.classes.filter((c) => c.name.trim().toLowerCase() !== trimmed);
-    if (this.data.classes.length !== prevLen) {
-      this.data.students = this.data.students.filter((s) => s.class.trim().toLowerCase() !== trimmed);
-      this.persist();
-      return true;
+    const trimmed = className.trim();
+    const upper = trimmed.toUpperCase();
+    if (!this.data.deletedClassNames) {
+      this.data.deletedClassNames = [];
     }
-    return false;
+    if (!this.data.deletedClassNames.includes(upper)) {
+      this.data.deletedClassNames.push(upper);
+    }
+    if (!this.data.deletedStudentIds) {
+      this.data.deletedStudentIds = [];
+    }
+    const studentsInClass = this.data.students.filter((s) => s.class.trim().toUpperCase() === upper);
+    studentsInClass.forEach((s) => {
+      if (!this.data.deletedStudentIds.includes(s.id)) {
+        this.data.deletedStudentIds.push(s.id);
+      }
+    });
+    this.data.classes = this.data.classes.filter((c) => c.name.trim().toUpperCase() !== upper);
+    this.data.students = this.data.students.filter((s) => s.class.trim().toUpperCase() !== upper);
+    this.persist();
+    return true;
   }
   restoreDefaultClasses() {
+    this.data.deletedClassNames = [];
+    this.data.deletedStudentIds = [];
     this.data.classes = [...DEFAULT_CLASSES];
     this.data.students = [...DEFAULT_STUDENTS];
     this.data.classes.forEach((c) => {
-      const cnt = this.data.students.filter((s) => s.class === c.name).length;
+      const cnt = this.data.students.filter((s) => s.class.trim().toUpperCase() === c.name.trim().toUpperCase()).length;
       if (cnt > 0) c.studentCount = cnt;
     });
     this.persist();
@@ -741,24 +793,35 @@ var DatabaseManager = class {
     this.persist();
   }
   deleteStudent(studentId) {
-    const prevLen = this.data.students.length;
     const student = this.data.students.find((s) => s.id === studentId);
     if (!student) return false;
-    this.data.students = this.data.students.filter((s) => s.id !== studentId);
-    if (this.data.students.length !== prevLen) {
-      const cls = this.data.classes.find((c) => c.name.toLowerCase() === student.class.toLowerCase());
-      if (cls && cls.studentCount && cls.studentCount > 0) {
-        cls.studentCount--;
-      }
-      this.persist();
-      return true;
+    if (!this.data.deletedStudentIds) {
+      this.data.deletedStudentIds = [];
     }
-    return false;
+    if (!this.data.deletedStudentIds.includes(studentId)) {
+      this.data.deletedStudentIds.push(studentId);
+    }
+    this.data.students = this.data.students.filter((s) => s.id !== studentId);
+    const cls = this.data.classes.find((c) => c.name.toLowerCase() === student.class.toLowerCase());
+    if (cls && cls.studentCount && cls.studentCount > 0) {
+      cls.studentCount--;
+    }
+    this.persist();
+    return true;
   }
   deleteClassStudents(className) {
-    const trimmed = className.trim().toLowerCase();
-    this.data.students = this.data.students.filter((s) => s.class.trim().toLowerCase() !== trimmed);
-    const cls = this.data.classes.find((c) => c.name.trim().toLowerCase() === trimmed);
+    const upper = className.trim().toUpperCase();
+    if (!this.data.deletedStudentIds) {
+      this.data.deletedStudentIds = [];
+    }
+    const targetStudents = this.data.students.filter((s) => s.class.trim().toUpperCase() === upper);
+    targetStudents.forEach((s) => {
+      if (!this.data.deletedStudentIds.includes(s.id)) {
+        this.data.deletedStudentIds.push(s.id);
+      }
+    });
+    this.data.students = this.data.students.filter((s) => s.class.trim().toUpperCase() !== upper);
+    const cls = this.data.classes.find((c) => c.name.trim().toUpperCase() === upper);
     if (cls) {
       cls.studentCount = 0;
     }
